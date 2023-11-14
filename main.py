@@ -1,6 +1,15 @@
-from geocoder import osm
+import geocoder
 import math
 import json
+
+def y_n_choices(request, default = None):
+    """
+    Ask user choice between yes or no
+    Default can be specified
+    :param request: Input text printed as question
+    :param default: [None/y/n]
+    :return:
+    """
 
 def pick_choice(request, *args):
     """
@@ -20,7 +29,7 @@ def pick_choice(request, *args):
     while True:
         print(request)
         print("\n".join(
-            [line.format(i=i, poss=poss) for i, poss in enumerate(args)]
+            [line.format(i=i+1, poss=poss) for i, poss in enumerate(args)]
         ))
         _in = input(">>> ")
         _in = _in.strip(" ").strip("\n")  # Remove exceeding chars
@@ -54,7 +63,7 @@ def convert_latlon(addresses_list):
     :param addresses_list: Liste des adresses à chercher
     :return: Coordonnées GPS trouvées
     """
-    return [osm(address).latlng for address in addresses_list]
+    return [geocoder.osm(address).latlng for address in addresses_list]
 
 def ask_starting_geo():
     """
@@ -67,10 +76,11 @@ def ask_starting_geo():
     :return: Starting point lat/lng
     """
     choices = ["Localisation automatique", "Entrée manuelle"]
-    [choices.append(f"Historique * {x}") for x in json.loads("config.json").get("history", {}).get("start", [])]
-    pick_choice("Point de départ", *choices)
-    start_addr = input("Entrez l'adresse de décollage\n>>> ")
-    return osm(start_addr).latlng
+    [choices.append(f"Historique * {x}") for x in json.load(open("config.json", "r")).get("history", {}).get("start", [])]
+    choice = pick_choice("Point de départ", *choices)
+    if choice == 0: # Auto-location
+        choices = map(lambda g: f"{g.city} - {g.country} ({g.latlng})", [geocoder.ipinfo(), geocoder.freegeoip("")])
+        pick_choice("Quelle position est la plus proche ?", *choices)
 
 
 if __name__ == '__main__':
