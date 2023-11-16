@@ -62,9 +62,9 @@ def get_address(addr, log=False):
 
 def ask_addresses():
     """
-    Demande les adresses à faire visiter au drone
+    Ask addresses to visit
 
-    :return: Liste des adresses
+    :return: Addresses array
     """
     _return = []
     while True:
@@ -75,10 +75,10 @@ def ask_addresses():
 
 def convert_latlon(addresses_list):
     """
-    Convertie la liste d'adresses en coordonnés satellites
+    Map geolocation from addresses array
 
-    :param addresses_list: Liste des adresses à chercher
-    :return: Coordonnés GPS trouvées
+    :param addresses_list: Addresses to search for
+    :return: Geolocation coordonates found
     """
     return [a for a in [get_address(addr, True).latlng for addr in addresses_list] if a]
 
