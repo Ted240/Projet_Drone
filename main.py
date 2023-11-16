@@ -45,9 +45,9 @@ def pick_choice(request, *args):
 
 def ask_addresses():
     """
-    Demande les adresses à faire visiter au drone
+    Ask addresses to visit
 
-    :return: Liste des adresses
+    :return: Addresses array
     """
     _return = []
     while True:
@@ -58,10 +58,10 @@ def ask_addresses():
 
 def convert_latlon(addresses_list):
     """
-    Convertie la liste d'adresses en coordonnées satellite
+    Map geolocation from addresses array
 
-    :param addresses_list: Liste des adresses à chercher
-    :return: Coordonnées GPS trouvées
+    :param addresses_list: Addresses to search for
+    :return: Geolocation coordonates found
     """
     return [geocoder.osm(address).latlng for address in addresses_list]
 
