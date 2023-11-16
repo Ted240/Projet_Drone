@@ -1,5 +1,16 @@
 {
-  "history": {
-    "start": []
+  "location": {
+    "start": {
+      "saved": [
+        [
+          "ICAM - Nantes",
+          [47.2753215, -1.5066774]
+        ]
+      ],
+      "history": []
+    }
+  },
+  "config": {
+    "max_history": 3
   }
 }
