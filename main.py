@@ -8,8 +8,17 @@ def y_n_choices(request, default = None):
     Default can be specified
     :param request: Input text printed as question
     :param default: [None/y/n]
-    :return:
+    :return: True for yes and False for no
     """
+    y, n = "y", "n"
+    prompt_poss = {"None": f"{y}/{n}", "True": f"\33[4m{y}\33[0m/{n}", "False": f"{y}/\33[4m{n}\33[0m"}[str(default if default in [None, False, True] else None)]
+    while True:
+        _in = input(f"{request} [{prompt_poss}] ")
+        _in = _in.strip(" ").strip("\n")
+        if _in.lower() in ["y", "yes", "oui", "o", "1"]: return True
+        if _in.lower() in ["no", "non", "n", "0"]: return False
+        if default is not None and _in == "": return default
+        print("\33[31mInvalid input\33[0m")
 
 def pick_choice(request, *args):
     """
@@ -43,6 +52,14 @@ def pick_choice(request, *args):
             return _in - 1
         # Else restart loop
 
+def get_address(addr, log=False):
+    g = geocoder.osm(addr)
+    if g.ok:
+        return g
+    else:
+        if log: print(f"\33[33m[!] L'adresse '{addr}' n'a pas été trouvé\33[0m")
+        return False
+
 def ask_addresses():
     """
     Demande les adresses à faire visiter au drone
@@ -58,12 +75,12 @@ def ask_addresses():
 
 def convert_latlon(addresses_list):
     """
-    Convertie la liste d'adresses en coordonnées satellite
+    Convertie la liste d'adresses en coordonnés satellites
 
     :param addresses_list: Liste des adresses à chercher
-    :return: Coordonnées GPS trouvées
+    :return: Coordonnés GPS trouvées
     """
-    return [geocoder.osm(address).latlng for address in addresses_list]
+    return [a for a in [get_address(addr, True).latlng for addr in addresses_list] if a]
 
 def ask_starting_geo():
     """
@@ -79,8 +96,14 @@ def ask_starting_geo():
     [choices.append(f"Historique * {x}") for x in json.load(open("config.json", "r")).get("history", {}).get("start", [])]
     choice = pick_choice("Point de départ", *choices)
     if choice == 0: # Auto-location
-        choices = map(lambda g: f"{g.city} - {g.country} ({g.latlng})", [geocoder.ipinfo(), geocoder.freegeoip("")])
-        pick_choice("Quelle position est la plus proche ?", *choices)
+        g = geocoder.ipinfo()
+        if y_n_choices(f"Choisir cette adresse ? {g.city} - {g.country} ({', '.join(g.latlng)})"):
+            return g
+    if choice == 1: # Manual entry
+        while True:
+            g = get_address(input("Adresse\n>>> "), True)
+
+
 
 
 if __name__ == '__main__':
