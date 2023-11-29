@@ -1,7 +1,31 @@
-import geocoder
 import math
 import json
+import time
+
 # pathdict is mandatory for script to run, auto install later on
+# geocoder is mandatory for script to run, auto install later on
+# requests is mandatory for script to run, auto install later on
+# dronekit is mandatory for script to run, auto install later on
+# pymavlink is mandatory for script to run, auto install later on
+import dronekit_wrapper
+
+"""
+Import pathdict
+"""
+try:
+    import pathdict
+except ModuleNotFoundError:
+    dronekit_wrapper.install_package("pathdict")
+    import pathdict
+
+"""
+Import geocoder
+"""
+try:
+    import geocoder
+except ModuleNotFoundError:
+    dronekit_wrapper.install_package("geocoder")
+    import geocoder
 
 def y_n_choices(request, default = None):
     """
@@ -48,7 +72,7 @@ def pick_choice(request, *sections, empty_section=False):
     while True:
         choices_map = []
         # Print request
-        print(request)
+        # print(request)
         # Print all possibilities
         # Print sections
         for s_index, _s_values in enumerate(sections):
@@ -117,29 +141,7 @@ def get_address(addr, log=False):
         if log: print(f"\33[33m[!] L'adresse '{addr}' n'a pas été trouvé\33[0m")
         return
 
-def ask_addresses():
-    """
-    Ask addresses to visit
-
-    :return: Addresses array
-    """
-    _return = []
-    while True:
-        _in = input("Entrez une adresse [Vide pour valider]:\n>>> ")
-        if _in == "": break
-        _return.append(_in)
-    return _return
-
-def convert_latlon(addresses_list):
-    """
-    Map geolocation from addresses array
-
-    :param addresses_list: Addresses to search for
-    :return: Geolocation coordinates found
-    """
-    return [a for a in [get_address(addr, True).latlng for addr in addresses_list] if a]
-
-def ask_starting_geo():
+def ask_geo():
     """
     Ask starting drone location
     Available selection:
@@ -150,31 +152,27 @@ def ask_starting_geo():
 
     :return: Starting point lat/lng
     """
-    addr_saved = config["location.start.saved"]
-    addr_history = config["location.start.history"]
-    # for addr, coords in addr_saved.items():
-    #     choices.append(f"{addr} ({', '.join(map(str, coords))})")
-    # for addr, coords in addr_history.items():
-    #     choices.append(f"{addr} ({', '.join(map(str, coords))})")
+    addr_saved = config[f"location.saved"]
+    addr_history = config[f"location.history"]
     choice = pick_choice(
-        "Point de départ",
+        "Choisissez un point",
         ["", ["Localisation automatique", "Entrée manuelle"]],
         ["Sauvegardées", [f"{addr:<40} ({','.join(map('{:^8.3f}'.format, coords))})" for addr, coords in addr_saved]],
         ["Historique", [f"{addr:<40} ({','.join(map('{:^8.3f}'.format, coords))})" for addr, coords in addr_history]]
     )
-    print(choice)
+    # print(choice)
     def save_historic(name, loc):
-        print(name)
+        # print(name)
         # Already in historic ?
-        loc_names = [x[0] for x in config["location.start.history"]]
+        loc_names = [x[0] for x in config["location.history"]]
         if name in loc_names:
             # True, remove older to then add a new one on top
-            config["location.start.history"].remove([name, loc])
+            config["location.history"].remove([name, loc])
         # Add on top
-        config["location.start.history"].insert(0, [name, loc])
+        config["location.history"].insert(0, [name, loc])
         # If too many elements, remove the older one
-        if len(config["location.start.history"]) > config["config.max_history"]:
-            config["location.start.history"] = config["location.start.history"][:config["config.max_history"]]
+        if len(config["location.history"]) > config["config.max_history"]:
+            config["location.history"] = config["location.history"][:config["config.max_history"]]
         config.save()
     if choice["global_i"] == 0: # Auto-location
         g = geocoder.ipinfo()
@@ -190,27 +188,31 @@ def ask_starting_geo():
     # Already known addresses (saved or historic)
     return [*(addr_saved if choice["section_i"] == 1 else addr_history)][choice["index"]][1]
 
-# Trying pathdict module importation
-try:
-    # noinspection PyUnresolvedReferences
-    import pathdict
-except ModuleNotFoundError:
-    # 'pathdict' module not found, asking installation
-    if y_n_choices("Le module python 'pathdict' n'est actuellement pas installé sur cette version de python, voulez vous l'installer", default=False):
-        # Install
-        import sys
-        import os
-        python_path = sys.executable
-        os.system(f'"{python_path}" -m pip install pathdict')
-        # noinspection PyUnresolvedReferences
-        import pathdict
-    else:
-        # Abandon de l'installation
-        print("Opération abandonnée. Le programme n'a pas pu continuer")
-        exit(1)
-
 if __name__ == '__main__':
     config = JSONFile("config.json")
-    print(ask_starting_geo())
-    # addresses = ask_addresses()
-    # print(convert_latlon(addresses))
+    # start = ask_geo()
+    # print(start)
+    addresses = []
+    while True:
+        addresses.append(ask_geo())
+        if not y_n_choices("Ajouter un autre point ?", default=False):
+            break
+    drone = dronekit_wrapper.Drone("127.0.0.1")
+    # Set home location
+    drone.arm_and_takeoff(20)
+    drone.create_mission()
+    for addr in addresses:
+        drone.add_waypoint(addr[0], addr[1])
+    drone.start_mission()
+    while not drone.has_finished:
+        print(f"Target {drone.vehicle.commands.next} : {drone.waypoint_distance:.1f}m")
+        time.sleep(1)
+    drone.back_to_start()
+    while drone.location[2] > 1:
+        print(f"Back to home: {drone.home_distance:.1f}m")
+        time.sleep(1)
+    drone.land()
+
+# TODO
+# - Automatic admins perms
+

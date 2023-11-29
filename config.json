@@ -1,14 +1,37 @@
 {
   "location": {
-    "start": {
-      "saved": [
+    "saved": [
+      [
+        "ICAM - Nantes",
         [
-          "ICAM - Nantes",
-          [47.2753215, -1.5066774]
+          47.2753215,
+          -1.5066774
+        ]
+      ]
+    ],
+    "history": [
+      [
+        "None - France",
+        [
+          47.2726448,
+          -1.500683
         ]
       ],
-      "history": []
-    }
+      [
+        "Vilnius - LT",
+        [
+          54.6892,
+          25.2798
+        ]
+      ],
+      [
+        "Le Poir\u00e9-sur-Vie - France",
+        [
+          46.7682395,
+          -1.5094862
+        ]
+      ]
+    ]
   },
   "config": {
     "max_history": 3
