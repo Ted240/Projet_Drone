@@ -1,6 +1,7 @@
 import math
 import json
 import time
+import os
 
 # pathdict is mandatory for script to run, auto install later on
 # geocoder is mandatory for script to run, auto install later on
@@ -11,6 +12,8 @@ import dronekit_wrapper
 
 """
 Import pathdict
+
+Handle path for dictionaries
 """
 try:
     import pathdict
@@ -20,12 +23,17 @@ except ModuleNotFoundError:
 
 """
 Import geocoder
+
+Addresses geolocation
 """
 try:
     import geocoder
 except ModuleNotFoundError:
     dronekit_wrapper.install_package("geocoder")
     import geocoder
+
+# Enable color in console
+os.system("color")
 
 def y_n_choices(request, default = None):
     """
@@ -72,7 +80,7 @@ def pick_choice(request, *sections, empty_section=False):
     while True:
         choices_map = []
         # Print request
-        # print(request)
+        print(request)
         # Print all possibilities
         # Print sections
         for s_index, _s_values in enumerate(sections):
@@ -92,6 +100,7 @@ def pick_choice(request, *sections, empty_section=False):
         _in = int(_in)
         # Input is in range
         if 1 <= _in <= len(args):
+            # Return formatted fields
             return {
                 "global_i": _in - 1,
                 "section_i": choices_map[_in-1][0],
@@ -118,10 +127,38 @@ class JSONFile:
     def path(self): return self._path
 
     def _open(self):
+        """
+        Open the file, create it if not existing
+        """
+        if not os.path.exists(self._path):
+            print(f"Configuration file '{self._path}' is missing and has to be created")
+            if y_n_choices(f"Le fichier de configuration '{self._path}' est absent et doit être créer\nVoulez vous importer le fichier directement depuis GitHub ?", True):
+                """
+                Import requests
+
+                Configuration file fetching
+                """
+                try:
+                    import requests as req
+                except ModuleNotFoundError:
+                    dronekit_wrapper.install_package("requests")
+                    import requests as req
+                # noinspection PyBroadException
+                try:
+                    self._content = pathdict.PathDict(req.get("https://raw.githubusercontent.com/Ted240/Projet_Drone/master/config.json").json())
+                except:
+                    print("Une erreur s'est produite, les valeurs par défaut vont être utilisées")
+            if self._content.data == {}:
+                self._content = pathdict.PathDict({"location":{"saved": [],"history": []},"config": {"max_history": 5}})
+            self.save()
+            print(f"Fichier '{self._path}' créé")
         with open(self._path, "r") as f:
             self._content = pathdict.PathDict(json.load(f), create_if_not_exists=True)
 
     def save(self):
+        """
+        Save the file
+        """
         with open(self._path, "w+") as f:
             json.dump(self._content.data, f, default=lambda x: x.data if isinstance(x, (pathdict.PathDict, pathdict.collection.StringIndexableList)) else x, indent=2)
 
@@ -133,12 +170,18 @@ class JSONFile:
 
 
 
-def get_address(addr, log=False):
-    g = geocoder.osm(addr)
+def get_address(address, log=False):
+    """
+    Return geolocation object if address found
+    :param address:
+    :param log:
+    :return:
+    """
+    g = geocoder.osm(address)
     if g.ok:
         return g
     else:
-        if log: print(f"\33[33m[!] L'adresse '{addr}' n'a pas été trouvé\33[0m")
+        if log: print(f"\33[33m[!] L'adresse '{address}' n'a pas été trouvé\33[0m")
         return
 
 def ask_geo():
@@ -152,16 +195,35 @@ def ask_geo():
 
     :return: Starting point lat/lng
     """
-    addr_saved = config[f"location.saved"]
-    addr_history = config[f"location.history"]
-    choice = pick_choice(
-        "Choisissez un point",
-        ["", ["Localisation automatique", "Entrée manuelle"]],
-        ["Sauvegardées", [f"{addr:<40} ({','.join(map('{:^8.3f}'.format, coords))})" for addr, coords in addr_saved]],
-        ["Historique", [f"{addr:<40} ({','.join(map('{:^8.3f}'.format, coords))})" for addr, coords in addr_history]]
-    )
-    # print(choice)
+
+    def generate_gmaps_link(geo):
+        """
+        Return Google Maps link to the address
+        :param geo: Geolocated address
+        :return: Google Maps link
+        """
+        return f"https://www.google.fr/maps/search/{geo.latlng[0]},{geo.latlng[1]}"
+
+    def get_city_name(geo):
+        """
+        Return address name
+        :param geo: Address geolocation
+        :return: Address name
+        """
+        geo: geocoder.api.OsmQuery
+        if geo.city is not None: return geo.city
+        if geo.town is not None: return geo.town
+        if geo.village is not None: return geo.village
+        if geo.municipality is not None: return geo.municipality
+        if geo.district is not None: return geo.district
+        if geo.neighborhood is not None: return geo.neighborhood
+        if geo.quarter is not None: return geo.quarter
     def save_historic(name, loc):
+        """
+        Save an address under a name
+        :param name: Friendly name
+        :param loc: Location
+        """
         # print(name)
         # Already in historic ?
         loc_names = [x[0] for x in config["location.history"]]
@@ -174,21 +236,34 @@ def ask_geo():
         if len(config["location.history"]) > config["config.max_history"]:
             config["location.history"] = config["location.history"][:config["config.max_history"]]
         config.save()
+
+    # Get all saved addresses and ask user
+    addr_saved = config[f"location.saved"]
+    addr_history = config[f"location.history"]
+    choice = pick_choice(
+        "Choisissez un point",
+        ["", ["Localisation automatique", "Entrée manuelle"]],
+        ["Sauvegardées", [f"{address:<40} ({','.join(map('{:^8.3f}'.format, coords))})" for address, coords in addr_saved]],
+        ["Historique", [f"{address:<40} ({','.join(map('{:^8.3f}'.format, coords))})" for address, coords in addr_history]]
+    )
+
     if choice["global_i"] == 0: # Auto-location
         g = geocoder.ipinfo()
-        if y_n_choices(f"Choisir cette adresse ? {g.city if g.city else g.village} - {g.country} ({','.join(map('{:^8.3f}'.format, g.latlng))})"):
-            save_historic(f"{g.city if g.city else g.village} - {g.country}", g.latlng)
+        if y_n_choices(f"Choisir cette adresse ? {get_city_name(g)} - {g.country} ({','.join(map('{:^8.3f}'.format, g.latlng))}) [{generate_gmaps_link(g)}]"):
+            save_historic(f"{get_city_name(g)} - {g.country}", g.latlng)
             return g.latlng
     if choice["global_i"] == 1: # Manual entry
         while True:
             g = get_address(input("Adresse\n>>> "), True)
             if g:
-                save_historic(f"{g.city if g.city else g.village} - {g.country}", g.latlng)
-                return g.latlng
+                if y_n_choices(f"Choisir cette adresse ? {get_city_name(g)} - {g.country} ({','.join(map('{:^8.3f}'.format, g.latlng))}) [{generate_gmaps_link(g)}]"):
+                    save_historic(f"{get_city_name(g)} - {g.country}", g.latlng)
+                    return g.latlng
     # Already known addresses (saved or historic)
     return [*(addr_saved if choice["section_i"] == 1 else addr_history)][choice["index"]][1]
 
 if __name__ == '__main__':
+    # Load config file
     config = JSONFile("config.json")
     # start = ask_geo()
     # print(start)
@@ -205,14 +280,11 @@ if __name__ == '__main__':
         drone.add_waypoint(addr[0], addr[1])
     drone.start_mission()
     while not drone.has_finished:
-        print(f"Target {drone.vehicle.commands.next} : {drone.waypoint_distance:.1f}m")
+        print(f"\n[Target {drone.vehicle.commands.next}]\n  Distance: {drone.waypoint_distance:.1f}m\n  Altitude: {drone.location[2]:.2f}m")
         time.sleep(1)
     drone.back_to_start()
-    while drone.location[2] > 1:
-        print(f"Back to home: {drone.home_distance:.1f}m")
+    while drone.location[2] > .1:
+        print(f"\n[Back to home]\n  Distance: {drone.home_distance:.1f}m\n  Altitude: {drone.location[2]:.2f}m")
         time.sleep(1)
     drone.land()
-
-# TODO
-# - Automatic admins perms
 
