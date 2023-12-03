@@ -34,7 +34,7 @@ def install_package(package_name, version=None, *deps, bypass=False):
         import sys
         import os
         python_path = sys.executable
-        os.system(f'"{python_path}" -m pip install {package_name}{f"=={version}" if version else ""} --quiet --no-input')
+        os.system(f'"{python_path}" -m pip install {package_name}{f"=={version}" if version else ""}')
         # if os.path.exists(python_path.replace("python.exe", "Scripts\\pip.exe")):
         #     pip = python_path.replace("python.exe", "\\Scripts\\pip.exe")
         #     os.system(f'"{pip}" install {package_name}{f"=={version}" if version else ""}')
