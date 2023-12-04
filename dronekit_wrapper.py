@@ -4,6 +4,7 @@ Credits : Teddy Barthelemy
 
 Simplify dronekit use with Mission Planner project
 Developed for school purposes.
+File is protected, any edits made to this file can result in a break
 Redistribution and appropriation are regulated:
 - Author (Teddy Barthelemy) must be credited
 
