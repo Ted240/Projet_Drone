@@ -20,7 +20,7 @@ Insérez au debut de votre script principal `import dronekit_wrapper` afin de po
 ### Utilisation
 
 Créer l'objet drone :<br>
-`<NOM_DE_VARIABLE> = dronekit_wrapper.Drone(<LATITUDE>, <LONGITUDE>, <IP>, <?PORT>)`
+`drone = dronekit_wrapper.Drone(<LATITUDE>, <LONGITUDE>, <IP>, <?PORT>)`
 
 Fait décoller le drone à 20m d'altitude :<br>
 `drone.arm_and_takeoff(20)`
