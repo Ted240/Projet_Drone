@@ -4,8 +4,8 @@
       [
         "ICAM - Nantes",
         [
-          47.2753215,
-          -1.5066774
+          47.275927,
+          -1.505819
         ]
       ],
       [
@@ -24,6 +24,13 @@
       ]
     ],
     "history": [
+      [
+        "Rue du Champ de Manoeuvre - Carquefou - France",
+        [
+          47.2753215,
+          -1.5066774
+        ]
+      ]
     ]
   },
   "config": {

