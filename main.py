@@ -246,29 +246,32 @@ def ask_geo(request_title):
         config.save()
 
     # Get all saved addresses and ask user
-    addr_saved = config[f"location.saved"]
-    addr_history = config[f"location.history"]
-    choice = pick_choice(
-        request_title,
-        ["", ["Localisation automatique", "Entrée manuelle"]],
-        ["Sauvegardées", [f"{address:<40} ({','.join(map('{:^8.3f}'.format, coords))})" for address, coords in addr_saved]],
-        ["Historique", [f"{address:<40} ({','.join(map('{:^8.3f}'.format, coords))})" for address, coords in addr_history]]
-    )
+    while True:
+        addr_saved = config[f"location.saved"]
+        addr_history = config[f"location.history"]
+        choice = pick_choice(
+            request_title,
+            ["", ["Localisation automatique", "Entrée manuelle"]],
+            ["Sauvegardées", [f"{address:<40} ({','.join(map('{:^8.3f}'.format, coords))})" for address, coords in addr_saved]],
+            ["Historique", [f"{address:<40} ({','.join(map('{:^8.3f}'.format, coords))})" for address, coords in addr_history]]
+        )
 
-    if choice["global_i"] == 0: # Auto-location
-        g = geocoder.ipinfo()
-        if y_n_choices(f"Choisir cette adresse ? {get_location_name(g)} ({','.join(map('{:^8.3f}'.format, g.latlng))}) [{generate_gmaps_link(g)}"):
-            save_historic(get_location_name(g), g.latlng)
-            return g.latlng
-    if choice["global_i"] == 1: # Manual entry
-        while True:
-            g = get_address(input("Adresse\n>>> "), True)
-            if g:
-                if y_n_choices(f"Choisir cette adresse ? {get_location_name(g)} ({','.join(map('{:^8.3f}'.format, g.latlng))}) [{generate_gmaps_link(g)}]"):
-                    save_historic(get_location_name(g), g.latlng)
-                    return g.latlng
-    # Already known addresses (saved or historic)
-    return [*(addr_saved if choice["section_i"] == 1 else addr_history)][choice["index"]][1]
+        if choice["global_i"] == 0: # Auto-location
+            g = geocoder.ipinfo()
+            if y_n_choices(f"Choisir cette adresse ? {get_location_name(g)} ({','.join(map('{:^8.3f}'.format, g.latlng))}) [{generate_gmaps_link(g)}"):
+                save_historic(get_location_name(g), g.latlng)
+                return g.latlng
+        if choice["global_i"] == 1: # Manual entry
+            while True:
+                g = get_address(input("Adresse\n>>> "), True)
+                if g:
+                    if y_n_choices(f"Choisir cette adresse ? {get_location_name(g)} ({','.join(map('{:^8.3f}'.format, g.latlng))}) [{generate_gmaps_link(g)}]"):
+                        save_historic(get_location_name(g), g.latlng)
+                        return g.latlng
+        if choice["global_i"] > 1: # Already known addresses (saved or historic)
+            address = [*(addr_saved if choice["section_i"] == 1 else addr_history)][choice["index"]]
+            save_historic(*address)
+            return address
 
 if __name__ == '__main__':
     # Load config file

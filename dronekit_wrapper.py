@@ -25,7 +25,7 @@ def install_package(package_name, version=None, *deps, bypass=False):
     :param deps: Package dependencies
     :param bypass: Enable bypassing
     """
-    if True if bypass else ("y" == input(f"Le module python '{package_name}{f' ({version})' if version else ''}' n'est actuellement pas installé sur cette version de python, voulez vous l'installer ?\n Y pour continuer: ").lower()):
+    if True if bypass else (input(f"Le module python '{package_name}{f' ({version})' if version else ''}' n'est actuellement pas installé sur cette version de python, voulez vous l'installer ?\n Y pour continuer: ").lower() in ["y", "o", "yes", "oui", "1"]):
         # Install
         if len(deps):
             for dep in deps:
@@ -103,30 +103,8 @@ except ModuleNotFoundError:
     install_package("requests")
     import requests as req
 
-"""
-Import elevate & ctypes
-
-UAC elevation to properly setup TCP socket connection
-"""
-
-# UAC elevating
-import ctypes
-from base64 import b85decode as decode
-if not ctypes.windll.shell32.IsUserAnAdmin():
-    _in = input("Pour garantir une connexion optimale à Mission Planner, le processus peut être élevé.\nVoulez-vous demander une élévation ? [\33[4my\33[0m/n]").lower()
-    if _in in ["y", "yes", "1", "", "oui", "o"]:
-        try:
-            from elevate import elevate
-        except ModuleNotFoundError:
-            install_package("elevate")
-            from elevate import elevate
-        # Ask elevation
-        print("Demande d'élévation")
-        elevate()
-    else:
-        print("Elevation refusée")
-
 # Enable script as elevated
+from base64 import b85decode as decode
 activation = None
 # noinspection PyBroadException
 try:
