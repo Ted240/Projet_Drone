@@ -270,7 +270,7 @@ def ask_geo(request_title):
                         return g.latlng
         if choice["global_i"] > 1: # Already known addresses (saved or historic)
             address = [*(addr_saved if choice["section_i"] == 1 else addr_history)][choice["index"]]
-            save_historic(*address)
+            if choice["section_i"] != 1: save_historic(*address)
             return address
 
 if __name__ == '__main__':
