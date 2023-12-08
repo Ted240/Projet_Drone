@@ -1,3 +1,9 @@
+"""
+PROJET DRONE
+
+Python 3.8
+"""
+
 import math, json, time, os
 
 # Enable color in console
@@ -283,7 +289,8 @@ if __name__ == '__main__':
         if not y_n_choices("Ajouter un autre point ?", default=False):
             break
     # Create drone at home location
-    drone = dronekit_wrapper.Drone(start[0], start[1], "127.0.0.1")
+    print(start)
+    drone = dronekit_wrapper.Drone(start[1][0], start[1][1], "127.0.0.1")
     # Drone takeoff
     drone.arm_and_takeoff(20)
     # Mission creation, addresses assignment
